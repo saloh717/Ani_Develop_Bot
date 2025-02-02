@@ -1,0 +1,19 @@
+{
+  "name": "ani_develop_bot",
+  "version": "1.0.0",
+  "description": "Yangi Anifandab Yuqori sifat uchun harakat.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ani_develop",
+    "anime",
+    "anidevelop"
+  ],
+  "author": "\"Saloh_717\"",
+  "license": "ISC",
+  "dependencies": {
+    "telebot": "^1.4.1"
+  }
+}
