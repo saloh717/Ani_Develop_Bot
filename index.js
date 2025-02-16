@@ -11,6 +11,7 @@ if (!TELEGRAM_BOT_TOKEN || !WEBHOOK_URL) {
     console.error("Error: TELEGRAM_BOT_TOKEN or WEBHOOK_URL is missing!");
     process.exit(1);
 }
+require('dotenv').config();
 
 const bot = new TeleBot({
     token: TELEGRAM_BOT_TOKEN,
