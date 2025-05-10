@@ -1,6 +1,6 @@
 require('dotenv').config();
 const TeleBot = require('telebot');
-const express = require('express');
+const express = require("express");
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
@@ -20,57 +20,40 @@ const bot = new TeleBot({
     }
 });
 
-let videos = [];
-let videoCodes = {};  // Storing video ids against codes
-let adminAction = {}; // For admin actions
+let videos = [];  // Videolar ro'yxati
+let videoCodes = {};  // Kod va video mappingi
+let adminAction = {};  // Admin uchun vaqtincha xatti-harakatlar
+let channels = [];  // Kanallar ro'yxati
 
-// Helper function to check subscriptions
-async function checkSubscriptions(chatId) {
-    const channels = await loadChannels();
-    for (let ch of channels) {
-        try {
-            const member = await bot.getChatMember(ch, chatId);
-            if (member.status !== 'member' && member.status !== 'administrator' && member.status !== 'creator') {
-                return false;
-            }
-        } catch (e) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Helper function to load channels from file or other source
-async function loadChannels() {
-    // Load channels list from file or database here
-    return ['@example_channel_1', '@example_channel_2']; // Replace with actual channel list
-}
-
-bot.on('text', async (msg) => {
+// /start komandasi
+bot.on('text', (msg) => {
     const chatId = msg.chat.id;
 
-    // Start command
     if (msg.text === '/start') {
         if (chatId === ADMIN_CHAT_ID) {
-            bot.sendMessage(chatId, 'Salom Admin! Video yuborasizmi yoki ko‘rasizmi? Yuborish uchun /sendvideo, ko‘rish uchun /getvideo raqamini yuboring.');
+            bot.sendMessage(chatId, 'Salom Admin! Video yuborasizmi yoki ko‘rasizmi? Yuborish uchun /sendvideo, ko‘rish uchun /getvideo raqamini yuboring.\n\nKanallarni boshqarish uchun /kanallar buyrug‘ini yuboring.');
         } else {
-            // Check if user is subscribed to required channels
-            const isSubscribed = await checkSubscriptions(chatId);
-            if (!isSubscribed) {
-                bot.sendMessage(chatId, '❗️Iltimos, kanalga a’zo bo‘ling va yana urinib ko‘ring.');
-            } else {
-                bot.sendMessage(chatId, 'Salom! Kodni yuboring!');
-            }
+            bot.sendMessage(chatId, 'Salom! Kodni yuboring!');
         }
     }
 
-    // Admin sends video
+    // Admin video yuborish bo'limi
     else if (msg.text === '/sendvideo' && chatId === ADMIN_CHAT_ID) {
         adminAction[chatId] = 'sendvideo';
         bot.sendMessage(chatId, 'Iltimos, video yuboring:');
     }
 
-    // User requests a video by code
+    // Admin kanallarni boshqarish bo'limi
+    else if (msg.text === '/kanallar' && chatId === ADMIN_CHAT_ID) {
+        let messageText = 'Majburiy kanallar:\n\n';
+        channels.forEach(channel => {
+            messageText += `➕ ${channel}\n`;
+        });
+        messageText += '\nKanal qo‘shish uchun /addchannel buyrug‘ini yuboring.';
+        bot.sendMessage(chatId, messageText);
+    }
+
+    // Foydalanuvchi video kodini yuborsa
     else if (msg.text.startsWith('/getvideo') && chatId !== ADMIN_CHAT_ID) {
         const videoNumber = parseInt(msg.text.split(' ')[1]);
         if (!isNaN(videoNumber) && videoNumber > 0 && videoNumber <= videos.length) {
@@ -79,50 +62,43 @@ bot.on('text', async (msg) => {
             bot.sendMessage(chatId, 'Bunday kodli video mavjud emas!');
         }
     }
-});
 
-// Admin sends video
-bot.on('video', async (msg) => {
-    const chatId = msg.chat.id;
-
-    if (chatId === ADMIN_CHAT_ID && adminAction[chatId] === 'sendvideo') {
+    // Admin video uchun kod yuborish
+    else if (adminAction[chatId] === 'sendvideo') {
         const videoId = msg.video.file_id;
         videos.push(videoId);
         bot.sendMessage(chatId, `Video raqamlandi: Video ${videos.length}`);
-        bot.sendMessage(chatId, 'Iltimos, video uchun kod yuboring:');
-        adminAction[chatId] = 'waiting_for_code'; // waiting for code after video
-    } else {
-        bot.sendMessage(chatId, 'Siz admin emassiz, video yubora olmaysiz!');
+        bot.sendMessage(chatId, 'Endi video uchun kod yuboring:');
+        adminAction[chatId] = 'sendcode';
+    }
+
+    // Admin video kodi yuborish
+    else if (adminAction[chatId] === 'sendcode') {
+        const videoCode = msg.text.trim();
+        videoCodes[videoCode] = videos[videos.length - 1]; // So'nggi videoni kodga moslashtirish
+        bot.sendMessage(chatId, `Kod muvaffaqiyatli saqlandi: ${videoCode}`);
+        delete adminAction[chatId];
     }
 });
 
-// Admin sends code after video
+// Kanal qo'shish
 bot.on('text', (msg) => {
     const chatId = msg.chat.id;
 
-    if (chatId === ADMIN_CHAT_ID && adminAction[chatId] === 'waiting_for_code') {
-        const code = msg.text.trim();
-        videoCodes[code] = videos[videos.length - 1];
-        bot.sendMessage(chatId, `Kod saqlandi: ${code}`);
-        adminAction[chatId] = null; // Reset action
+    if (msg.text === '/addchannel' && chatId === ADMIN_CHAT_ID) {
+        bot.sendMessage(chatId, 'Kanal @username yoki linkini yuboring:');
+        adminAction[chatId] = 'addchannel';
+    }
+
+    // Admin kanal qo'shish
+    else if (adminAction[chatId] === 'addchannel') {
+        const newChannel = msg.text.trim();
+        channels.push(newChannel);
+        bot.sendMessage(chatId, 'Kanal qo‘shildi.');
+        delete adminAction[chatId];
     }
 });
 
-// User requests video by code
-bot.on('text', async (msg) => {
-    const chatId = msg.chat.id;
-
-    if (chatId !== ADMIN_CHAT_ID) {
-        const code = msg.text.trim();
-        if (videoCodes[code]) {
-            bot.sendVideo(chatId, videoCodes[code]);
-        } else {
-            bot.sendMessage(chatId, 'Bunday kod topilmadi!');
-        }
-    }
-});
-
-// Webhook server setup
 const app = express();
 app.use(express.json());
 app.post(`/bot${TELEGRAM_BOT_TOKEN}`, (req, res) => {
